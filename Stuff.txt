@@ -1,0 +1,439 @@
+#include "window.h"
+
+const char* window_title = "GLFW Starter Project";
+OldCube * oldCube;
+double origX = 0, origY = 0, oldX = 0, oldY = 0, newX = 0, newY = 0;
+glm::vec3 origPoint, newPoint;
+bool lButtonDown, rButtonDown;
+int mode = 0;
+OBJObject * bunny;
+OBJObject * dragon;
+OBJObject * bear;
+OBJObject * currentObject;
+Skybox* skybox;
+MatrixTransform * robotArmy;
+int oldTime;
+int newTime;
+
+GLint shaderProgram;
+GLint skyboxShaderProgram;
+
+// On some systems you need to change this to the absolute path
+#define VERTEX_SHADER_PATH "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/shader.vert"
+#define FRAGMENT_SHADER_PATH "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/shader.frag"
+
+#define SKYBOX_VERTEX_SHADER_PATH "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/skyboxshader.vert"
+#define SKYBOX_FRAGMENT_SHADER_PATH "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/skyboxshader.frag"
+
+// Default camera parameters
+glm::vec3 Window::cam_pos(0.0f, 0.0f, 20.0f);       // e  | Position of camera
+glm::vec3 Window::cam_look_at(0.0f, 0.0f, 0.0f);    // d  | This is where the camera looks at
+glm::vec3 Window::cam_up(0.0f, 1.0f, 0.0f);         // up | What orientation "up" is
+
+int Window::width;
+int Window::height;
+
+glm::mat4 Window::P;
+glm::mat4 Window::V;
+bool Window::culling;
+
+void Window::initialize_objects()
+{
+    lButtonDown = false, rButtonDown = false;
+    //oldCube = new OldCube();
+    Window::culling = false;
+    
+    glm::vec3 bunnyColor = glm::vec3(1.0f, 0.41f, 0.7f);
+    glm::vec3 bunnyAmbient = glm::vec3(1.0f, 0.41f, 0.7f);
+    glm::vec3 bunnyDiffuse = glm::vec3(1.0f, 0.41f, 0.7f);
+    glm::vec3 bunnySpecular = glm::vec3(1.0f, 0.41f, 0.7f);
+    bunny = new OBJObject("/Users/ericcheng/Documents/CSE167HW2/CSE167HW2/bunny.obj", bunnyColor, bunnyAmbient, bunnyDiffuse, bunnySpecular);
+    glm::vec3 dragonColor = glm::vec3(0.0f, 0.41f, 1.0f);
+    glm::vec3 dragonAmbient = glm::vec3(0.0f, 0.41f, 1.0f);
+    glm::vec3 dragonDiffuse = glm::vec3(0.0f, 0.41f, 1.0f);
+    glm::vec3 dragonSpecular = glm::vec3(0.0f, 0.41f, 1.0f);
+    dragon = new OBJObject("/Users/ericcheng/Documents/CSE167HW2/CSE167HW2/dragon.obj", dragonColor, dragonAmbient, dragonDiffuse, dragonSpecular);
+    glm::vec3 bearColor = glm::vec3(0.6f, 1.0f, 0.7f);
+    glm::vec3 bearAmbient = glm::vec3(0.6f, 1.0f, 0.7f);
+    glm::vec3 bearDiffuse = glm::vec3(0.6f, 1.0f, 0.7f);
+    glm::vec3 bearSpecular = glm::vec3(0.6f, 1.0f, 0.7f);
+    bear = new OBJObject("/Users/ericcheng/Documents/CSE167HW2/CSE167HW2/bear.obj", bearColor, bearAmbient, bearDiffuse, bearSpecular);
+    currentObject = bunny;
+    
+    skybox = new Skybox("/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/mistylake_lf.pnm",
+                        "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/mistylake_rt.pnm",
+                        "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/mistylake_bk.pnm",
+                        "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/mistylake_ft.pnm",
+                        "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/mistylake_up.pnm",
+                        "/Users/ericcheng/Documents/CSE167HW3/CSE167HW3/mistylake_dn.pnm");
+    
+    // Load the shader program. Make sure you have the correct filepath up top
+    shaderProgram = LoadShaders(VERTEX_SHADER_PATH, FRAGMENT_SHADER_PATH);
+    
+    robotArmy = new MatrixTransform(0, 0);
+
+    for (int i = 0; i < 10; i++) {
+        for (int j = 0; j < 10; j++) {
+    Sphere * head = new Sphere(shaderProgram);
+    head->scale(1,1.5,1);
+    head->translate(0,4,0);
+    
+    Cube * body = new Cube(shaderProgram);
+    body->scale(1,1.5,1);
+    
+    MatrixTransform * robotBody = new MatrixTransform(0, 0);
+    robotBody->addChild(body);
+    robotBody->addChild(head);
+
+    //Create Arms
+    MatrixTransform * leftRobotArm = new MatrixTransform(-3.14/4, 1);
+    leftRobotArm->setRotationVector(1, 0, 0);
+    leftRobotArm->setRotationMinMax(-3.14/4, 3.14/4);
+    Cube * leftArm = new Cube(shaderProgram);
+    leftArm->scale(0.5, 1, 0.5);
+    leftArm->translate(2, 0, 0);
+    MatrixTransform * rightRobotArm = new MatrixTransform(3.14/4, -1);
+    rightRobotArm->setRotationVector(1, 0, 0);
+    rightRobotArm->setRotationMinMax(-3.14/4, 3.14/4);
+    Cube * rightArm = new Cube(shaderProgram);
+    rightArm->scale(0.5, 1, 0.5);
+    rightArm->translate(-2, 0, 0);
+    leftRobotArm->addChild(leftArm);
+    rightRobotArm->addChild(rightArm);
+    robotBody->addChild(leftRobotArm);
+    robotBody->addChild(rightRobotArm);
+    
+    //Create Legs
+    MatrixTransform * leftRobotLeg = new MatrixTransform(3.14/6, 1);
+    leftRobotLeg->setRotationVector(1, 0, 0);
+    leftRobotLeg->setRotationMinMax(-3.14/6, 3.14/6);
+    Cube * leftLeg = new Cube(shaderProgram);
+    leftLeg->scale(0.5, 3, 0.5);
+    leftLeg->translate(1.5, -3, 0);
+    MatrixTransform * rightRobotLeg = new MatrixTransform(-3.14/6, -1);
+    rightRobotLeg->setRotationVector(1, 0, 0);
+    rightRobotLeg->setRotationMinMax(-3.14/6, 3.14/6);
+    Cube * rightLeg = new Cube(shaderProgram);
+    rightLeg->scale(0.5, 3, 0.5);
+    rightLeg->translate(-1.5, -3, 0);
+    leftRobotLeg->addChild(leftLeg);
+    rightRobotLeg->addChild(rightLeg);
+    robotBody->addChild(leftRobotLeg);
+    robotBody->addChild(rightRobotLeg);
+    
+    robotBody->translate((i - 5) * 10, 0, (j - 5) * 10);
+    
+    robotArmy->addChild(robotBody);
+        }
+    }
+    
+    skyboxShaderProgram = LoadShaders(SKYBOX_VERTEX_SHADER_PATH, SKYBOX_FRAGMENT_SHADER_PATH);
+}
+
+// Treat this as a destructor function. Delete dynamically allocated memory here.
+void Window::clean_up()
+{
+    delete(oldCube);
+    glDeleteProgram(shaderProgram);
+}
+
+GLFWwindow* Window::create_window(int width, int height)
+{
+    // Initialize GLFW
+    if (!glfwInit())
+    {
+        fprintf(stderr, "Failed to initialize GLFW\n");
+        return NULL;
+    }
+    
+    // 4x antialiasing
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    
+#ifdef __APPLE__ // Because Apple hates comforming to standards
+    // Ensure that minimum OpenGL version is 3.3
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    // Enable forward compatibility and allow a modern OpenGL context
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+#endif
+    
+    // Create the GLFW window
+    GLFWwindow* window = glfwCreateWindow(width, height, window_title, NULL, NULL);
+    
+    // Check if the window could not be created
+    if (!window)
+    {
+        fprintf(stderr, "Failed to open GLFW window.\n");
+        fprintf(stderr, "Either GLFW is not installed or your graphics card does not support modern OpenGL.\n");
+        glfwTerminate();
+        return NULL;
+    }
+    
+    // Make the context of the window
+    glfwMakeContextCurrent(window);
+    
+    // Set swap interval to 1
+    glfwSwapInterval(1);
+    
+    // Get the width and height of the framebuffer to properly resize the window
+    glfwGetFramebufferSize(window, &width, &height);
+    // Call the resize callback to make sure things get drawn immediately
+    Window::resize_callback(window, width, height);
+    
+    return window;
+}
+
+void Window::resize_callback(GLFWwindow* window, int width, int height)
+{
+    Window::width = width;
+    Window::height = height;
+    // Set the viewport size. This is the only matrix that OpenGL maintains for us in modern OpenGL!
+    glViewport(0, 0, width, height);
+    
+    if (height > 0)
+    {
+        P = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
+        V = glm::lookAt(cam_pos, cam_look_at, cam_up);
+    }
+}
+
+void Window::idle_callback()
+{
+    // Call the update function the OldCube
+    robotArmy->update();
+    
+}
+
+void Window::display_callback(GLFWwindow* window)
+{
+    // Clear the color and depth buffers
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    
+    
+    glUseProgram(skyboxShaderProgram);
+    glDepthMask(GL_FALSE);
+    skybox->draw(skyboxShaderProgram, shaderProgram);
+    glDepthMask(GL_TRUE);
+    
+    // Use the shader of programID
+    glUseProgram(shaderProgram);
+    
+    glfwGetCursorPos(window, &newX, &newY);
+    if (newX != oldX || newY != oldY)
+    {
+        // Render the OldCube
+        if (lButtonDown)
+        {
+            newPoint = trackball_mapping(newX, newY);
+            //currentObject->rotate(origPoint, newPoint);
+            rotate(origPoint, newPoint);
+        }
+    
+        if (rButtonDown)
+        {
+
+            float diffX = newX - oldX;
+            float diffY = newY - oldY;
+            
+            //currentObject->translate(diffX / 21, -diffY / 21);
+            robotArmy->translate(-diffX / 21, -diffY / 21, 0);
+        }
+        oldX = newX, oldY = newY;
+        origPoint = trackball_mapping(oldX, oldY);
+    }
+    
+    oldTime = clock();
+    robotArmy->draw(glm::mat4(1.0f));
+    newTime = clock();
+    printf("Elapse Time: %d\n", newTime - oldTime);
+    
+    // Gets events, including input such as keyboard and mouse or window resizing
+    glfwPollEvents();
+    // Swap buffers
+    glfwSwapBuffers(window);
+}
+
+void Window::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    // Check for a key press
+    if (action == GLFW_PRESS)
+    {
+        // Check if escape was pressed
+        if (key == GLFW_KEY_ESCAPE)
+        {
+            // Close the window. This causes the program to also terminate.
+            glfwSetWindowShouldClose(window, GL_TRUE);
+        }
+        else if (key == GLFW_KEY_F1)
+        {
+            currentObject = bunny;
+        }
+        else if (key == GLFW_KEY_F2)
+        {
+            currentObject = dragon;
+        }
+        else if (key == GLFW_KEY_F3)
+        {
+            currentObject = bear;
+        }
+        else if (key == 'S')
+        {
+            if (mods & GLFW_MOD_SHIFT)
+            {
+                currentObject->setSize(2);
+            }
+            else
+            {
+                currentObject->setSize(0.5f);
+            }
+        }
+        else if (key == 'R')
+        {
+            cam_pos = glm::vec3(0.0f, 0.0f, 20.0f);     // e  | Position of camera
+            cam_look_at = glm::vec3(0.0f, 0.0f, 0.0f);  // d  | This is where the camera looks at
+            cam_up = glm::vec3(0.0f, 1.0f, 0.0f);
+            currentObject->reset();
+            V = glm::lookAt(cam_pos, cam_look_at, cam_up);
+        }
+        else if (key == 'C')
+        {
+            if (Window::culling == 0) {
+                Window::culling = 1;
+            }
+            else {
+                Window::culling = 0;
+            }
+        }
+        else if (key == '0')
+        {
+            mode = 0;
+            GLuint aMode = glGetUniformLocation(shaderProgram, "mode");
+            glUniform1i(aMode, 0);
+        }
+        else if (key == '1')
+        {
+            mode = 1;
+            GLuint aMode = glGetUniformLocation(shaderProgram, "mode");
+            glUniform1i(aMode, 1);
+        }
+        else if (key == '2')
+        {
+            mode = 2;
+            GLuint aMode = glGetUniformLocation(shaderProgram, "mode");
+            glUniform1i(aMode, 2);
+        }
+        else if (key == '3')
+        {
+            GLuint aMode = glGetUniformLocation(shaderProgram, "mode");
+            glUniform1i(aMode, 3);
+            
+        }
+    }
+}
+
+void Window::mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        glfwGetCursorPos(window, &origX, &origY);
+        oldX = origX, oldY = origY;
+        if (button == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            origPoint = trackball_mapping(origX, origY);
+            lButtonDown = true;
+        }
+        if (button == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            rButtonDown = true;
+        }
+    }
+    else if (action == GLFW_RELEASE)
+    {
+        lButtonDown = false;
+        rButtonDown = false;
+    }
+}
+
+void Window::scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    cam_pos.z += yoffset;
+    
+    V = glm::lookAt(cam_pos, cam_look_at, cam_up);
+}
+
+glm::vec3 Window::trackball_mapping(double x, double y)
+{
+    glm::vec3 out;
+    out.x = (2.0 * x - width) / width;
+    out.y = (height - 2.0 * y) / height;
+    out.z = 0.0f;
+    
+    double d = glm::length(out);
+    d = (d<1.0f) ? d : 1.0f;
+    out.z = sqrtf(1.001f - d*d);
+    
+    //Normalize
+    out = glm::normalize(out);
+    
+    return out;
+}
+
+void Window::rotate(glm::vec3 oldPoint, glm::vec3 newPoint)
+{
+    cam_pos = glm::rotate(length(newPoint - oldPoint), cross(newPoint, oldPoint)) * glm::vec4(cam_pos.x, cam_pos.y, cam_pos.z, 0);
+    V = glm::lookAt(cam_pos, cam_look_at, cam_up);
+}
+
+void Window::translate(float x, float y)
+{
+    cam_pos = glm::translate(glm::vec3(x, y, 0)) * glm::vec4(cam_pos.x, cam_pos.y, cam_pos.z, 0);
+    V = glm::lookAt(cam_pos, cam_look_at, cam_up);
+}
+
+	//left 
+	planes[0][0] = mtx[3][0] + mtx[0][0];
+	planes[0][1] = mtx[3][1] + mtx[0][1];
+	planes[0][2] = mtx[3][2] + mtx[0][2];
+	planes[0][3] = mtx[3][3] + mtx[0][3];
+
+	// right
+	planes[1][0] = mtx[3][0] - mtx[0][0];
+	planes[1][1] = mtx[3][1] - mtx[0][1];
+	planes[1][2] = mtx[3][2] - mtx[0][2];
+	planes[1][3] = mtx[3][3] - mtx[0][3];
+
+	// bottom
+	planes[2][0] = mtx[3][0] + mtx[1][0];
+	planes[2][1] = mtx[3][1] + mtx[1][1];
+	planes[2][2] = mtx[3][2] + mtx[1][2];
+	planes[2][3] = mtx[3][3] + mtx[1][3];
+
+	// top
+	planes[3][0] = mtx[3][0] - mtx[1][0];
+	planes[3][1] = mtx[3][1] - mtx[1][1];
+	planes[3][2] = mtx[3][2] - mtx[1][2];
+	planes[3][3] = mtx[3][3] - mtx[1][3];
+
+	// near
+	planes[4][0] = mtx[3][0] + mtx[2][0];
+	planes[4][1] = mtx[3][1] + mtx[2][1];
+	planes[4][2] = mtx[3][2] + mtx[2][2];
+	planes[4][3] = mtx[3][3] + mtx[2][3];
+
+	// far
+	planes[5][0] = mtx[3][0] - mtx[2][0];
+	planes[5][1] = mtx[3][1] - mtx[2][1];
+	planes[5][2] = mtx[3][2] - mtx[2][2];
+	planes[5][3] = mtx[3][3] - mtx[2][3];
+
+	// normalize vectors
+	for (int i = 0; i < 6; i++)
+	{
+		glm::vec4 plane_v = glm::normalize(glm::vec4(planes[i][0], planes[i][1], planes[i][2], planes[i][3]));
+		planes[i][0] = plane_v.x;
+		planes[i][1] = plane_v.y;
+		planes[i][2] = plane_v.z;
+		planes[i][3] = plane_v.w;
+		fprintf(stderr, "Plane #%u - x: %f, y: %f, z: %f, d: %f\n", i, planes[i][0], planes[i][1], planes[i][2], planes[i][3]);
+	}
